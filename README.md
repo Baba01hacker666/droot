@@ -42,6 +42,36 @@ python3 -m droot selftest        # 11-check self-verification on this box
 Or `pip install -e .` for the `droot` entry point. Python 3.10+ (uses
 `os.splice`), stdlib only.
 
+### Prebuilt payloads (no compiler on target)
+
+Every release ships CI-compiled static x86_64 binaries for all C payloads.
+Install them anywhere with a one-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Baba01hacker666/droot/main/scripts/droot-download.sh | sh
+# -> ~/.droot/prebuilt/ (override: --out DIR, or DROOT_PREBUILT_DIR)
+```
+
+The script verifies every binary against the sha256 manifest bundled in the
+release tarball before installing anything. Specific release: append
+`--tag vX.Y.Z`.
+
+### How it is built / verified in CI
+
+`.github/workflows/ci.yml` runs on every push and PR:
+
+- **lint** — ruff (first-party code only; vendored PoCs keep upstream style)
+- **selftest** — the full 11-check `droot selftest` on the runner kernel,
+  including the live CopyFail AF_ALG 4-byte page-cache write probe and a
+  compile of every C payload
+- **compile payloads** — `scripts/build-payloads.py` compiles all 42 C
+  payloads with the exact flags the on-target runner uses (same
+  `csource.build()` code path) and posts a build table to the job summary
+
+On a published release, the workflow static-compiles everything, packages
+`droot-payloads-<tag>-linux-<arch>.tar.gz` (+ sha256 + the download script),
+builds the wheel/sdist, and uploads them all to the release.
+
 ## Exploit inventory (65 entries, 59 CVEs)
 
 **Userspace / no kernel bug**
