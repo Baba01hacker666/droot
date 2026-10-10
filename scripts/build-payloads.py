@@ -26,6 +26,7 @@ import dataclasses
 import hashlib
 import json
 import os
+import shutil
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -73,6 +74,11 @@ def build_all(out_dir: str, static: bool):
             final = os.path.join(out_dir, spec.id)
             if os.path.abspath(binary) != os.path.abspath(final):
                 os.replace(binary, final)
+            if spec.build_mode == "make":
+                # drop the copied source tree the make build ran in -- the
+                # tarball must ship binaries only
+                shutil.rmtree(os.path.join(out_dir, "make-%s" % spec.id),
+                              ignore_errors=True)
             entry["file"] = spec.id
             entry["bytes"] = os.path.getsize(final)
             entry["sha256"] = sha256_file(final)

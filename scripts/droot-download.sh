@@ -66,10 +66,14 @@ else
 fi
 
 # verify against the manifest bundled inside the tarball
-if ! tar -xzf "$TMP/$ASSET" -C "$TMP" manifest.json 2>/dev/null; then
+if ! tar -xzf "$TMP/$ASSET" -C "$TMP" payloads/manifest.json 2>/dev/null; then
     echo "[-] no manifest.json in release asset -- refusing to install" >&2
     exit 1
 fi
+[ -f "$TMP/payloads/manifest.json" ] || {
+    echo "[-] manifest.json missing after extraction -- refusing to install" >&2
+    exit 1
+}
 
 fail=0
 while read -r name want; do
@@ -83,9 +87,11 @@ while read -r name want; do
     fi
 done <<EOF
 $(sed -n 's/.*"\([^"]*\)": *{[^}]*"sha256": *"\([0-9a-f]\{64\}\)".*/\1 \2/p' \
-    "$TMP/manifest.json")
+    "$TMP/payloads/manifest.json")
 EOF
 [ "$fail" -eq 0 ] || { echo "[-] integrity check failed" >&2; exit 1; }
+[ -n "$(sha256sum "$TMP/payloads/dirtycow" | cut -d' ' -f1)" ] || {
+    echo "[-] manifest verification checked nothing -- refusing" >&2; exit 1; }
 
 tar -xzf "$TMP/$ASSET" -C "$TMP" payloads
 mkdir -p "$DEST"
