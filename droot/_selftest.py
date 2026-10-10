@@ -152,6 +152,13 @@ def t_recon():
 def t_canary_plumbing():
     r = Runner()
     ctx = r.context(timeout=30)
+    # use isolated test paths: this test must never touch the real
+    # marker / suid shell a previous exploit run left behind
+    ctx.marker = os.path.join(ctx.workdir, "test-marker")
+    ctx.rootshell = os.path.join(ctx.workdir, "test-rootshell")
+    for p in (ctx.marker, ctx.rootshell):
+        if os.path.exists(p):
+            os.unlink(p)
     # 1) missing marker -> not verified
     if base.NativeExploit.root_verified(ctx):
         return False, "root_verified() true with no marker"
@@ -168,7 +175,6 @@ def t_canary_plumbing():
             return False, "root_verified() false for root-owned marker"
     finally:
         base.os_stat = real_stat
-    os.unlink(ctx.marker)
     # 4) a fake 'exploit' that runs the canary leaves a non-root marker
     script = os.path.join(ctx.workdir, "fake_exploit.sh")
     with open(script, "w") as f:
@@ -177,6 +183,9 @@ def t_canary_plumbing():
     subprocess.run([script], input=ctx.canary(), capture_output=True,
                    text=True, timeout=30)
     ok = os.path.exists(ctx.marker) and not base.NativeExploit.root_verified(ctx)
+    for p in (ctx.marker, ctx.rootshell):
+        if os.path.exists(p):
+            os.unlink(p)
     return ok, "canary verification logic correct (all 3 branches)"
 
 
