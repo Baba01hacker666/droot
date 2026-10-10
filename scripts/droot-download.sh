@@ -65,39 +65,59 @@ else
     wget -qO "$TMP/$ASSET" "$URL"
 fi
 
-# verify against the manifest bundled inside the tarball
-if ! tar -xzf "$TMP/$ASSET" -C "$TMP" payloads/manifest.json 2>/dev/null; then
+# unpack everything first, then verify every binary against the manifest
+tar -xzf "$TMP/$ASSET" -C "$TMP" payloads/manifest.json 2>/dev/null || {
     echo "[-] no manifest.json in release asset -- refusing to install" >&2
     exit 1
-fi
+}
+tar -xzf "$TMP/$ASSET" -C "$TMP" payloads
 [ -f "$TMP/payloads/manifest.json" ] || {
     echo "[-] manifest.json missing after extraction -- refusing to install" >&2
     exit 1
 }
 
+# parse the manifest: name + sha256 per line (python3 is droot's own
+# dependency; jq as fallback for python-less boxes)
+manifest_list() {
+    if command -v python3 >/dev/null 2>&1; then
+        python3 -c '
+import json, sys
+m = json.load(open(sys.argv[1]))
+for name, info in m.get("payloads", {}).items():
+    print("%s %s" % (name, info.get("sha256", "")))
+' "$1"
+    elif command -v jq >/dev/null 2>&1; then
+        jq -r '.payloads | to_entries[] | "\(.key) \(.value.sha256)"' "$1"
+    else
+        echo "[-] need python3 or jq to read the manifest" >&2
+        exit 1
+    fi
+}
+
 fail=0
+checked=0
+manifest_list "$TMP/payloads/manifest.json" > "$TMP/manifest.list"
 while read -r name want; do
-    got=$(sha256sum "$TMP/payloads/$name" 2>/dev/null | cut -d' ' -f1) || {
-        fail=1; echo "[-] missing payload: $name" >&2; continue; }
+    [ -n "$name" ] || continue
+    if [ ! -f "$TMP/payloads/$name" ]; then
+        fail=1; echo "[-] missing payload: $name" >&2; continue
+    fi
+    got=$(sha256sum "$TMP/payloads/$name" | cut -d' ' -f1)
+    checked=$((checked + 1))
     if [ "$got" != "$want" ]; then
         fail=1
         echo "[-] sha256 mismatch: $name" >&2
         echo "      manifest: $want" >&2
         echo "      actual:   $got" >&2
     fi
-done <<EOF
-$(sed -n 's/.*"\([^"]*\)": *{[^}]*"sha256": *"\([0-9a-f]\{64\}\)".*/\1 \2/p' \
-    "$TMP/payloads/manifest.json")
-EOF
+done < "$TMP/manifest.list"
 [ "$fail" -eq 0 ] || { echo "[-] integrity check failed" >&2; exit 1; }
-[ -n "$(sha256sum "$TMP/payloads/dirtycow" | cut -d' ' -f1)" ] || {
+[ "$checked" -gt 0 ] || {
     echo "[-] manifest verification checked nothing -- refusing" >&2; exit 1; }
 
-tar -xzf "$TMP/$ASSET" -C "$TMP" payloads
 mkdir -p "$DEST"
 cp -r "$TMP/payloads/." "$DEST/"
 chmod +x "$DEST"/* 2>/dev/null || true
 
-n=$(find "$DEST" -type f ! -name manifest.json | wc -l)
-echo "[+] $n payloads installed in $DEST (sha256 verified)"
+echo "[+] $checked payloads installed in $DEST (sha256 verified)"
 echo "[*] run them directly, or point droot at them with DROOT_PREBUILT_DIR=$DEST"
