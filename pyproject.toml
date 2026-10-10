@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "droot"
+version = "1.0.0"
+description = "Linux LPE toolkit: kernel-aware viability, safe runner, canary root verification"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "baba01hacker"}]
+keywords = ["linux", "lpe", "privilege-escalation", "pentest", "red-team"]
+
+[project.scripts]
+droot = "droot.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["droot*"]
+
+[tool.setuptools.package-data]
+droot = ["payloads/**/*"]
