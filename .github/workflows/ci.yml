@@ -34,9 +34,7 @@ jobs:
       - name: ruff
         run: |
           pip install ruff
-          # droot/payloads holds vendored upstream PoCs -- they keep their
-          # original style, only first-party code is linted
-          ruff check droot scripts --exclude droot/payloads
+          ruff check .
       - name: compileall
         run: python -m compileall -q droot scripts
       - name: registry sanity

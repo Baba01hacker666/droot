@@ -27,12 +27,16 @@ import types
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from droot import registry                      # noqa: E402
-from droot.exploits import base, copyfail, dirtypipe  # noqa: E402
-from droot.exploits import csource              # noqa: E402
-from droot.kernelver import KernelVersion, detect_distro, in_range, is_fixed_by_distro  # noqa: E402
-from droot.recon import gather_profile          # noqa: E402
-from droot.runner import Runner                 # noqa: E402
+from droot import registry
+from droot.exploits import (
+    base,
+    copyfail,
+    csource,
+    dirtypipe,
+)
+from droot.kernelver import KernelVersion, detect_distro, in_range, is_fixed_by_distro
+from droot.recon import gather_profile
+from droot.runner import Runner
 
 V = KernelVersion.parse
 RESULTS = []
@@ -49,7 +53,7 @@ def check(name, fn):
 # ---------------------------------------------------------------------------
 
 def t_imports():
-    import droot.cli  # noqa: F401
+    import droot.cli
     import droot.runner  # noqa: F401
     return True, "all modules import"
 
@@ -195,7 +199,12 @@ def t_native_checks():
     pv = pwnkit.PwnKit().check(profile)
     if pv is None:
         return False, "pwnkit check returned None"
-    expected = "PATCHED" if (profile.pkexec_version or 0) >= 0.120 else "VULNERABLE"
+    if not profile.pkexec:
+        # no pkexec on this box: UNAVAILABLE is the correct verdict
+        expected = "UNAVAILABLE"
+    else:
+        expected = ("PATCHED" if (profile.pkexec_version or 0) >= 0.120
+                    else "VULNERABLE")
     if pv.status != expected:
         return False, "pwnkit verdict %s (expected %s)" % (pv.status, expected)
     uv = userspace.Userspace().check(profile)

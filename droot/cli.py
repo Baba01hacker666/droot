@@ -18,7 +18,8 @@ import os
 import sys
 import time
 
-from . import registry, report, runner as runner_mod, ui
+from . import registry, report, ui
+from . import runner as runner_mod
 from .recon import gather_profile
 
 

@@ -20,3 +20,13 @@ include = ["droot*"]
 
 [tool.setuptools.package-data]
 droot = ["payloads/**/*"]
+
+[tool.ruff]
+# vendored upstream PoCs keep their original style; only first-party code
+# is linted
+extend-exclude = ["droot/payloads"]
+
+[tool.ruff.lint]
+# droot's house style: %-formatting everywhere, blind excepts (one exploit
+# failure must never kill a sweep) and implicit subprocess checks
+ignore = ["UP031", "BLE001", "PLW1510", "S110", "S112"]

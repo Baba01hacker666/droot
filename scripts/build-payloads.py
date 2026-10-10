@@ -31,8 +31,8 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 
-from droot.registry import REGISTRY          # noqa: E402
-from droot.exploits import csource           # noqa: E402
+from droot.exploits import csource
+from droot.registry import REGISTRY
 
 
 def sha256_file(path: str) -> str:

@@ -14,7 +14,7 @@ _VER_RE = re.compile(r"^(\d+)\.(\d+)(?:\.(\d+))?(.*)$")
 class KernelVersion:
     """Comparable (major, minor, patch) tuple with a raw suffix."""
 
-    __slots__ = ("major", "minor", "patch", "extra")
+    __slots__ = ("extra", "major", "minor", "patch")
 
     def __init__(self, major: int, minor: int, patch: int, extra: str = ""):
         self.major = major
@@ -23,7 +23,7 @@ class KernelVersion:
         self.extra = extra or ""
 
     @classmethod
-    def parse(cls, text: str) -> "KernelVersion":
+    def parse(cls, text: str) -> KernelVersion:
         m = _VER_RE.match(text.strip())
         if not m:
             raise ValueError("unparseable kernel version: %r" % text)
@@ -117,7 +117,7 @@ def _rpm_version_cmp(a: str, b: str) -> int:
     return -1 if len(ca) < len(cb) else 1
 
 
-def detect_distro(kernel_release: str = None) -> DistroRelease:
+def detect_distro(kernel_release: str | None = None) -> DistroRelease:
     """Build a DistroRelease for the running box (or a given release string)."""
     if kernel_release is None:
         kernel_release = os.uname().release
@@ -165,14 +165,12 @@ def detect_distro(kernel_release: str = None) -> DistroRelease:
                          abi, rpm_release, family)
 
 
-def in_range(kv: KernelVersion, lo: KernelVersion = None,
-             hi: KernelVersion = None) -> bool:
+def in_range(kv: KernelVersion, lo: KernelVersion | None = None,
+             hi: KernelVersion | None = None) -> bool:
     """True when kv is inside [lo, hi); hi is the first fixed version."""
     if lo is not None and kv < lo:
         return False
-    if hi is not None and kv >= hi:
-        return False
-    return True
+    return not (hi is not None and kv >= hi)
 
 
 def is_fixed_by_distro(fixes: dict, dr: DistroRelease):
