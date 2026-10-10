@@ -147,8 +147,8 @@ _add(id="nft-uaf2", name="nftables UAF", cve="CVE-2022-2586", kind="binary",
      refs=["https://github.com/theori-io/nftables-uaf"],
      notes="prebuilt static binary; source variant needs libnftnl headers")
 
-_add(id="nft-uaf", name="nftables UAF (2024)", cve="CVE-2024-1086", kind="make",
-     payload="c/nft-uaf-1086",
+_add(id="nft-uaf", name="nftables UAF (2024)", cve="CVE-2024-1086",
+     kind="csource", payload="c/nft-uaf-1086", build_mode="make",
      kernel_ranges=[(V("5.14"), V("6.6.7"))],
      requires=["gcc"], risk="medium", reliability=4, stdin_payload=True,
      technique="nft_verdict_init use-after-free via netlink -> cred overwrite",
@@ -286,7 +286,7 @@ _add(id="afalg-race", name="AF_ALG concurrent-write race", cve="CVE-2025-39964",
      notes="hardcoded offsets; needs per-kernel grooming")
 
 _add(id="sched-uaf", name="net/sched act_api UAF", cve="CVE-2026-53264",
-     kind="make", payload="c/HORKimhab/CVE-2026-53264",
+     kind="csource", payload="c/HORKimhab/CVE-2026-53264", build_mode="make",
      kernel_ranges=[(V("4.14"), V("5.10.259")), (V("5.11"), V("5.15.210")),
                     (V("5.16"), V("6.1.176")), (V("6.2"), V("6.6.143")),
                     (V("6.7"), V("6.12.94")), (V("6.13"), V("6.18.36")),

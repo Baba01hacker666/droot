@@ -1,0 +1,147 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed by the release job to upload assets
+
+env:
+  # every compiler/header the registry payloads need:
+  #   build-essential   gcc/g++/make
+  #   gcc-multilib      -m32 payloads (msr.c, sock_diag.c)
+  #   musl-tools        nft-uaf-1086 (musl-gcc static PoC)
+  #   libdbus-1-dev     polkit_race (pkg-config dbus-1)
+  #   libkeyutils-dev   pp_key (-lkeyutils)
+  #   libcrypt-dev      dirtycow / pidfd-race (-lcrypt)
+  APT_PKGS: build-essential gcc-multilib musl-tools pkg-config libdbus-1-dev libkeyutils-dev libcrypt-dev
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ruff
+        run: |
+          pip install ruff
+          # droot/payloads holds vendored upstream PoCs -- they keep their
+          # original style, only first-party code is linted
+          ruff check droot scripts --exclude droot/payloads
+      - name: compileall
+        run: python -m compileall -q droot scripts
+      - name: registry sanity
+        run: |
+          python -c "from droot import registry; \
+          print(len(registry.REGISTRY), 'exploits in registry')"
+
+  selftest:
+    name: selftest
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install compiler deps
+        run: sudo apt-get update && sudo apt-get install -y $APT_PKGS
+      - name: droot selftest (live primitives on the runner kernel)
+        run: python -m droot._selftest
+        # includes the CopyFail AF_ALG 4-byte page-cache write probe and the
+        # compile-all-payloads check; fails loudly if either regresses
+
+  compile:
+    name: compile payloads
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install compiler deps
+        run: sudo apt-get update && sudo apt-get install -y $APT_PKGS
+      - name: build all payloads (same flags as on-target builds)
+        run: |
+          python3 scripts/build-payloads.py --out payloads-build \
+            --report build-report.json || true
+          {
+            echo "| payload | cve | bytes | sha256 |"
+            echo "|---|---|---|---|"
+            python3 - <<'PY'
+          import json
+          r = json.load(open("build-report.json"))
+          for e in r["results"]:
+              if e["ok"]:
+                  print("| %s | %s | %d | %s |" %
+                        (e["id"], e["cve"] or "-", e["bytes"], e["sha256"][:12]))
+              else:
+                  print("| %s | %s | FAIL | %s |" %
+                        (e["id"], e["cve"] or "-", e["error"][:60]))
+          PY
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "built $(python3 -c "import json; print(json.load(open('build-report.json'))['built'])")" \
+            "/ $(python3 -c "import json; print(len(json.load(open('build-report.json'))['results']))")" \
+            >> "$GITHUB_STEP_SUMMARY"
+          # fail the job if anything failed to compile
+          python3 -c "import json,sys; sys.exit(0 if json.load(open('build-report.json'))['failed']==0 else 1)"
+      - name: upload build report
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-report
+          path: build-report.json
+
+  release:
+    name: release artifacts
+    needs: [lint, selftest, compile]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: install compiler deps
+        run: sudo apt-get update && sudo apt-get install -y $APT_PKGS
+      - name: static-compile payloads
+        run: |
+          python3 scripts/build-payloads.py --out dist/payloads --static \
+            --report dist/build-report.json
+      - name: package payload tarball
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          ARCH=$(uname -m)
+          TAR="droot-payloads-${TAG}-linux-${ARCH}.tar.gz"
+          tar -czf "$TAR" -C dist payloads
+          sha256sum "$TAR" > "${TAR}.sha256"
+          echo "TAR=$TAR" >> "$GITHUB_ENV"
+      - name: build wheel + sdist
+        run: |
+          pip install build
+          python -m build
+      - name: upload assets to the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "$TAR" "${TAR}.sha256" \
+            scripts/droot-download.sh \
+            dist/*.whl dist/*.tar.gz \
+            --clobber
+      - name: summary
+        run: |
+          {
+            echo "Attached to release ${{ github.event.release.tag_name }}:"
+            echo ""
+            echo "- \`$TAR\` ($(du -h "$TAR" | cut -f1)) - $(find dist/payloads -type f ! -name manifest.json | wc -l) prebuilt payloads"
+            echo "- \`scripts/droot-download.sh\` - one-liner installer (verifies sha256)"
+            echo "- wheel + sdist (\`pip install droot\`)"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -289,7 +289,7 @@ def _probe_writable(profile):
 def _probe_mounts(profile):
     try:
         with open("/proc/mounts") as f:
-            profile.mounts = [l.split()[2] for l in f if len(l.split()) > 2]
+            profile.mounts = [ln.split()[2] for ln in f if len(ln.split()) > 2]
     except OSError:
         pass
 
@@ -305,8 +305,8 @@ def gather_profile() -> SystemProfile:
     p.groups = [g.gr_name for g in grp.getgrall() if p.username in g.gr_mem]
     p.in_sudo_group = bool({"sudo", "wheel", "admin"} & set(p.groups))
     out = _run("sudo -n -l 2>/dev/null | tail -n +2", timeout=10)
-    p.sudo_nopasswd = [l.split("NOPASSWD:")[1].strip()
-                       for l in out.splitlines() if "NOPASSWD" in l]
+    p.sudo_nopasswd = [ln.split("NOPASSWD:")[1].strip()
+                       for ln in out.splitlines() if "NOPASSWD" in ln]
     p.container = _detect_container()
     try:
         with open("/sys/fs/selinux/enforce") as f:
