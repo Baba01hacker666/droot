@@ -52,6 +52,10 @@ class SystemProfile:
         self.pkexec = None
         self.pkexec_version = None
         self.sudo_version = None
+        self.polkit_version = None       # e.g. "0.117" (RHEL 7/8 ship 0.112/0.115)
+        self.accounts_daemon = False     # accountsservice + dbus (CVE-2021-3560)
+        self.dbus_system = False         # system bus socket reachable
+        self.glibc_version = None        # e.g. "2.28" (CVE-2018-1000001)
         self.fusermount3 = None
         self.dbus_send = None
         self.packagekit = None
@@ -207,6 +211,24 @@ def _probe_userspace(profile):
     m = re.search(r"(\d+\.\d+(?:\.\d+)?p\d*)", sv)
     if m:
         profile.sudo_version = m.group(1)
+    # polkit version: `pkexec --version` prints "polkit version 0.117" on
+    # RHEL-family builds; `pkaction --version` is the portable probe
+    pv = _run("pkaction --version 2>/dev/null || pkexec --version 2>/dev/null")
+    m = re.search(r"(\d+\.\d+)", pv or "")
+    if m:
+        profile.polkit_version = m.group(1)
+    # accounts-daemon reachable over the system bus (CVE-2021-3560 needs
+    # accountsservice + a live dbus; probe without dbus-send dependency)
+    profile.dbus_system = any(
+        os.path.exists(p) for p in ("/run/dbus/system_bus_socket",
+                                    "/var/run/dbus/system_bus_socket"))
+    ad = _run("test -x /usr/libexec/accounts-daemon && echo yes "
+              "|| test -x /usr/lib/accountsservice/accounts-daemon && echo yes")
+    profile.accounts_daemon = bool(ad) and profile.dbus_system
+    gl = _run("ldd --version | head -1")
+    m = re.search(r"(\d+\.\d+)", gl or "")
+    if m:
+        profile.glibc_version = m.group(1)
     f3 = _run("command -v fusermount3 || command -v fusermount")
     if f3:
         profile.fusermount3 = f3
@@ -235,7 +257,9 @@ def _probe_userspace(profile):
 
 
 def _probe_suid(profile):
-    out = _run("find / -xdev -perm -4000 -type f 2>/dev/null", timeout=60)
+    # -xdev keeps us on the root mount; container overlay trees can be slow,
+    # so allow a generous timeout rather than reporting a bogus empty list
+    out = _run("find / -xdev -perm -4000 -type f 2>/dev/null", timeout=180)
     profile.suid_binaries = sorted(set(out.splitlines())) if out else []
 
 

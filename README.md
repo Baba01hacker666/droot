@@ -42,7 +42,7 @@ python3 -m droot selftest        # 11-check self-verification on this box
 Or `pip install -e .` for the `droot` entry point. Python 3.10+ (uses
 `os.splice`), stdlib only.
 
-## Exploit inventory (42 entries, 36 CVEs)
+## Exploit inventory (65 entries, 59 CVEs)
 
 **Userspace / no kernel bug**
 - PwnKit CVE-2021-4034 (native, gconv module)
@@ -51,9 +51,28 @@ Or `pip install -e .` for the `droot` entry point. Python 3.10+ (uses
 - Userspace sweep: SUID GTFOBins, NOPASSWD sudo, writable /etc/passwd,
   writable core_pattern
 
-**Classics** — DirtyCOW CVE-2016-5195, DirtyPipe CVE-2022-0847 (native),
-netfilter OOB CVE-2021-22555, OverlayFS CVE-2021-3493, OverlayFS+FUSE
-CVE-2023-0386, nftables UAF CVE-2022-2586 / CVE-2024-1086
+**RHEL-flavored userspace**
+- polkit dbus race CVE-2021-3560 (hakivvi PoC) — the RHEL 7/8 path: Red Hat
+  shipped polkit 0.112/0.115, the upstream fix only landed in 0.120
+- sudo+SELinux CVE-2017-1000367 (sudo 1.8.6p7–1.8.20 + SELinux + any sudo
+  rule — the classic RHEL 6 escalation)
+- glibc realpath underflow CVE-2018-1000001 (glibc ≤ 2.26)
+
+**Classic 2.6.x/3.x canon** (RHEL 5/6/7, Debian 6/7, Ubuntu 12.04/14.04 era —
+ranges from NVD CPE data + each PoC's own tested-kernel list)
+- memodipper CVE-2012-0056 (RHEL 6.0–6.2), MSR CVE-2013-0268, RDS
+  CVE-2010-3904, perf_swevent/semtex CVE-2013-2094 (RHEL 6.1+ backport),
+  NETLINK_SOCK_DIAG CVE-2013-1763, clone CLONE_NEWUSER CVE-2013-1858,
+  rawmodePTY CVE-2014-0196, timeoutpwn CVE-2014-0038, futex/towelroot
+  CVE-2014-3153, ptrace kmod2 CVE-2014-4699, OverlayFS userns CVE-2015-1328
+  (Ubuntu 3.13/3.16/3.19), pp_key CVE-2016-0728, USB MIDI CVE-2016-2384,
+  SO_*BUFFORCE CVE-2016-9793, AF_PACKET CVE-2017-7308 (Pwn2Own), DCCP
+  CVE-2017-6074, UFO CVE-2017-1000112, eBPF c0wl CVE-2017-16995, waitid
+  CVE-2017-5123, userns map_write CVE-2018-18955 (RHEL 8.0/8.1 era)
+
+**Mid-era classics** — DirtyCOW CVE-2016-5195, DirtyPipe CVE-2022-0847
+(native), netfilter OOB CVE-2021-22555, OverlayFS CVE-2021-3493,
+OverlayFS+FUSE CVE-2023-0386, nftables UAF CVE-2022-2586 / CVE-2024-1086
 
 **2025–2026** — CopyFail CVE-2026-31431 (native, AF_ALG+splice, verified
 live), AF_ALG race CVE-2025-39964, proc_readdir_de CVE-2025-40271, net/sched
@@ -62,6 +81,11 @@ TUNderflow CVE-2026-81000, PPPoEject CVE-2026-68121, DiagSpill CVE-2026-74469),
 plus the 2026 set from the reference toolkit (ZcopyReaper, DirtyPedit,
 skb_shift/GRO/DirtyClone, Bad Epoll, CIFSwitch, Pack2TheRoot, FUSE OOB,
 pidfd race, bonding UAF, IPv6 frag escape, Fragnesia family, CopyFail Go).
+
+**RHEL fixed-in data**: rpm-release comparison (e.g. `3.10.0-327.36.3.el7`)
+with the well-documented fixes only (DirtyCOW RHEL7 327.36.3, UFO RHEL7
+693.5.2) — unverifiable fixed-in data is deliberately absent rather than
+guessed; upstream ranges still apply.
 
 ## Payload kinds
 

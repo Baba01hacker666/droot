@@ -59,11 +59,13 @@ class Runner:
     # -- context ---------------------------------------------------------------
     def context(self, timeout):
         ctx = base.RunContext(self.state_dir, timeout)
-        for p in (ctx.marker, ctx.rootshell):
-            try:
-                os.unlink(p)
-            except OSError:
-                pass
+        # Clear only the canary marker: a new run must start with no proof of
+        # root. The suid shell is a PERSISTENT artifact -- deleting it here
+        # would wipe the shell an earlier successful exploit left behind.
+        try:
+            os.unlink(ctx.marker)
+        except OSError:
+            pass
         return ctx
 
     # -- execution -------------------------------------------------------------
